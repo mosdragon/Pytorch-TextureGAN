@@ -9,12 +9,17 @@ from torch.utils.data.sampler import SequentialSampler
 
 from torch.utils.data import DataLoader
 from dataloader.imfol import ImageFolder
+import torch.nn.parallel
 
 from utils import transforms as custom_transforms
 from models import scribbler, discriminator, texturegan, define_G, weights_init, \
     scribbler_dilate_128, FeatureExtractor, load_network
 from train import train
 import argparser
+
+
+device0 = torch.device("cuda:0")
+
 
 def get_transforms(args):
     transforms_list = [
@@ -87,7 +92,6 @@ def get_criterions(args):
 
 
 def main(args):
-    #with torch.cuda.device(args.gpu):
     layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13','relu1_2': '4'}
 
     vis = visdom.Visdom(port=args.display_port)
@@ -137,48 +141,60 @@ def main(args):
     optimizerG = optim.Adam(netG.parameters(), lr=args.learning_rate, betas=(0.5, 0.999))
     optimizerD_local = optim.Adam(netD_local.parameters(), lr=args.learning_rate_D_local, betas=(0.5, 0.999))
 
-    with torch.cuda.device(args.gpu):
-        netG.cuda()
-        netD.cuda()
-        netD_local.cuda()
-        feat_model.cuda()
-        criterion_gan.cuda()
-        criterion_pixel_l.cuda()
-        criterion_pixel_ab.cuda()
-        criterion_feat.cuda()
-        criterion_texturegan.cuda()
 
-        input_stack = torch.FloatTensor().cuda()
-        target_img = torch.FloatTensor().cuda()
-        target_texture = torch.FloatTensor().cuda()
-        segment = torch.FloatTensor().cuda()
-        label = torch.FloatTensor(args.batch_size).cuda()
-        label_local = torch.FloatTensor(args.batch_size).cuda()
-        extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
-        extract_style = FeatureExtractor(feat_model.features,
-                                         [layers_map[x.strip()] for x in args.style_layers.split(',')])
+    netG.to(device0)
+    netD.to(device0)
+    netD_local.to(device0)
+    feat_model.to(device0)
+    criterion_gan.to(device0)
+    criterion_pixel_l.to(device0)
+    criterion_pixel_ab.to(device0)
+    criterion_feat.to(device0)
+    criterion_texturegan.to(device0)
 
-        model = {
-            "netG": netG,
-            "netD": netD,
-            "netD_local": netD_local,
-            "criterion_gan": criterion_gan,
-            "criterion_pixel_l": criterion_pixel_l,
-            "criterion_pixel_ab": criterion_pixel_ab,
-            "criterion_feat": criterion_feat,
-            "criterion_style": criterion_style,
-            "criterion_texturegan": criterion_texturegan,
-            "real_label": real_label,
-            "fake_label": fake_label,
-            "optimizerD": optimizerD,
-            "optimizerD_local": optimizerD_local,
-            "optimizerG": optimizerG
-        }
+    input_stack = torch.FloatTensor().to(device0)
+    target_img = torch.FloatTensor().to(device0)
+    target_texture = torch.FloatTensor().to(device0)
+    segment = torch.FloatTensor().to(device0)
+    label = torch.FloatTensor(args.batch_size).to(device0)
+    label_local = torch.FloatTensor(args.batch_size).to(device0)
+    extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
+    extract_style = FeatureExtractor(feat_model.features,
+                                        [layers_map[x.strip()] for x in args.style_layers.split(',')])
 
-        for epoch in range(args.load_epoch, args.num_epoch):
-            train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-                  segment, label, label_local,extract_content, extract_style, loss_graph, vis, epoch, args)
-            #break
+    if args.gpu > 1:
+        netG = nn.DataParallel(netG, list(range(args.gpu)))
+        netD = nn.DataParallel(netD, list(range(args.gpu)))
+        netD_local = nn.DataParallel(netD_local, list(range(args.gpu)))
+        feat_model = nn.DataParallel(feat_model, list(range(args.gpu)))
+        criterion_gan = nn.DataParallel(criterion_gan, list(range(args.gpu)))
+        criterion_pixel_l = nn.DataParallel(criterion_pixel_l, list(range(args.gpu)))
+        criterion_pixel_ab = nn.DataParallel(criterion_pixel_ab, list(range(args.gpu)))
+        criterion_feat = nn.DataParallel(criterion_feat, list(range(args.gpu)))
+        criterion_texturegan = nn.DataParallel(criterion_texturegan, list(range(args.gpu)))
+
+
+    model = {
+        "netG": netG,
+        "netD": netD,
+        "netD_local": netD_local,
+        "criterion_gan": criterion_gan,
+        "criterion_pixel_l": criterion_pixel_l,
+        "criterion_pixel_ab": criterion_pixel_ab,
+        "criterion_feat": criterion_feat,
+        "criterion_style": criterion_style,
+        "criterion_texturegan": criterion_texturegan,
+        "real_label": real_label,
+        "fake_label": fake_label,
+        "optimizerD": optimizerD,
+        "optimizerD_local": optimizerD_local,
+        "optimizerG": optimizerG
+    }
+
+    for epoch in range(args.load_epoch, args.num_epoch):
+        train(model, train_loader, val_loader, input_stack, target_img, target_texture,
+                segment, label, label_local,extract_content, extract_style, loss_graph, vis, epoch, args)
+            
 if __name__ == '__main__':
     args = argparser.parse_arguments()
     main(args)

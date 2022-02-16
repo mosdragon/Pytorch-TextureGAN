@@ -6,6 +6,9 @@ import os
 import os.path as osp
 
 
+device0 = torch.device("cuda:0")
+
+
 def save_network(model, network_label, epoch, iteration, args):
     dataset = args.data_path.split(os.sep)[-1]
     save_filename = "{0}_net_{1}_{2}_{3}.pth".format(network_label, args.model, epoch, iteration)
@@ -28,7 +31,7 @@ def save_network(model, network_label, epoch, iteration, args):
     }
 
     torch.save(model_state, save_path)
-    model.cuda(device_id=args.gpu)
+    model.to(device0)
     print("Saved {0} at epoch: {1}, iter: {2}".format(network_label, epoch, iteration))
 
 
@@ -57,7 +60,7 @@ def load_network(model, network_label, epoch, iteration, args):
             'image_size': args.image_size
         }
     
-    model.cuda(device_id=args.gpu)
+    model.to(device0)
 
     print('Loaded {0} from epoch: {1} itr: {2}'.format(network_label, epoch, args.load))
 
@@ -92,7 +95,8 @@ def define_G(input_nc, output_nc, ngf, norm='batch', use_dropout=False, gpu_ids=
     netG = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9, gpu_ids=gpu_ids)
 
     if len(gpu_ids) > 0:
-        netG.cuda(device_id=gpu_ids[0])
+        netG.to(device0)
+        
     netG.apply(weights_init)
     return netG
 
@@ -108,7 +112,7 @@ def define_D(input_nc, ndf, norm='batch', use_sigmoid=False, gpu_ids=[]):
     netD = NLayerDiscriminator(input_nc, ndf, n_layers=3, norm_layer=norm_layer, use_sigmoid=use_sigmoid, gpu_ids=gpu_ids)
 
     if use_gpu:
-        netD.cuda(device_id=gpu_ids[0])
+        netD.to(device0)
     netD.apply(weights_init)
     return netD
 
@@ -156,7 +160,7 @@ class GANLoss(nn.Module):
 
     def __call__(self, input, target_is_real):
         target_tensor = self.get_target_tensor(input, target_is_real)
-        return self.loss(input, target_tensor.cuda())
+        return self.loss(input, target_tensor.to(device0))
 
     # TODO define forward() for GANLoss?
 
@@ -202,10 +206,7 @@ class ResnetGenerator(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, x):
-        if self.gpu_ids and isinstance(x.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, x, self.gpu_ids)
-        else:
-            return self.model(x)
+        return self.model(x)
 
 
 # Define a resnet block
@@ -275,10 +276,7 @@ class NLayerDiscriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, x):
-        if len(self.gpu_ids)  and isinstance(x.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, x, self.gpu_ids)
-        else:
-            return self.model(x)
+        return self.model(x)
 
 
 class GramMatrix(nn.Module):

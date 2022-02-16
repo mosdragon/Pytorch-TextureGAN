@@ -9,6 +9,8 @@ import time
 import math
 import random
 
+device0 = torch.device("cuda:0")
+
 def rand_between(a, b):
     return a + torch.round(torch.rand(1) * (b - a))[0]
 
@@ -103,7 +105,7 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, seg, img):
                 
         i_bs = int(i_bs)
         seg_index_size = eroded_seg[i_bs,0,:,:].view(-1).size()[0]
-        seg_index = torch.arange(0,seg_index_size).cuda()
+        seg_index = torch.arange(0,seg_index_size).to(device0)
         #import pdb; pdb.set_trace()
         #print bs, batch_size
         seg_one = seg_index[eroded_seg[i_bs,0,:,:].view(-1)==1]
@@ -158,7 +160,7 @@ def renormalize(img):
     """
 
     forward_norm = torch.ones(img.data.size()) * 0.5
-    forward_norm = Variable(forward_norm.cuda())
+    forward_norm = Variable(forward_norm.to(device0))
     img = (img * forward_norm) + forward_norm  # add previous norm
     # return img
     mean = img.data.new(img.data.size())
@@ -220,12 +222,12 @@ def visualize_training(netG, val_loader,input_stack, target_img, target_texture,
                                               args.patch_size_min, args.patch_size_max,
                                               args.num_input_texture_patch)
 
-        img = img.cuda()
-        skg = skg.cuda()
-        seg = seg.cuda()
-        eroded_seg = eroded_seg.cuda()
-        txt = txt.cuda()
-        inp = inp.cuda()
+        img = img.to(device0)
+        skg = skg.to(device0)
+        seg = seg.to(device0)
+        eroded_seg = eroded_seg.to(device0)
+        txt = txt.to(device0)
+        inp = inp.to(device0)
 
         inp.size()
 
@@ -443,20 +445,20 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         #print(time.time()-tic)
         batch_size, _, _, _ = img.size()
 
-        img = img.cuda()
-        skg = skg.cuda()
-        seg = seg.cuda()
-        eroded_seg = eroded_seg.cuda()
-        txt = txt.cuda()
+        img = img.to(device0)
+        skg = skg.to(device0)
+        seg = seg.to(device0)
+        eroded_seg = eroded_seg.to(device0)
+        txt = txt.to(device0)
 
-        inp = inp.cuda()
+        inp = inp.to(device0)
 
         input_stack.resize_as_(inp.float()).copy_(inp)
         target_img.resize_as_(img.float()).copy_(img)
         segment.resize_as_(seg.float()).copy_(seg)
         target_texture.resize_as_(txt.float()).copy_(txt)
         
-        inv_idx = torch.arange(target_texture.size(0)-1, -1, -1).long().cuda()
+        inv_idx = torch.arange(target_texture.size(0)-1, -1, -1).long().to(device0)
         target_texture_inv = target_texture.index_select(0, inv_idx)
 
         assert torch.max(seg) <= 1
@@ -605,7 +607,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         ####################################
         err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style + err_texturegan
         
-        err_G.backward(retain_variables=True)
+        err_G.backward(retain_graph=True)
 
         optimizerG.step()
 
@@ -707,7 +709,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             labelv = Variable(label.fill_(real_label))
 
             errD_real_local = criterion_texturegan(outputD_local, labelv)
-            errD_real_local.backward(retain_variables=True)
+            errD_real_local.backward(retain_graph=True)
 
             score = Variable(torch.ones(batch_size))
             _, cd, wd, hd = outputD_local.size()

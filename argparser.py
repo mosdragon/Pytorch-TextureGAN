@@ -44,18 +44,18 @@ def parse_arguments(*args):
 
     # parser.add_argument('--gpu', default=[0], type=int, nargs='+',
     #                     help='List of GPU IDs to use')  # TODO support cpu
-    parser.add_argument('--gpu', default=1, type=int, help="GPU ID")
+    parser.add_argument('--gpu', default=2, type=int, help="GPU ID")
 
     parser.add_argument('--display_port', default=7779, type=int,
                         help='port for displaying on visdom (need to match with visdom currently open port)')
 
-    parser.add_argument('--data_path', default='/home/psangkloy3/training_handbags_pretrain/', type=str,
+    parser.add_argument('--data_path', default='./training_handbags_pretrain/', type=str,
                         help='path to the data directory, expect train_skg, train_img, val_skg, val_img')
 
-    parser.add_argument('--save_dir', default='/home/psangkloy3/test/', type=str,
+    parser.add_argument('--save_dir', default='./test/', type=str,
                         help='path to save the model')
 
-    parser.add_argument('--load_dir', default='/home/psangkloy3/test/', type=str,
+    parser.add_argument('--load_dir', default='./test/', type=str,
                         help='path to save the model')
 
     parser.add_argument('--save_every', default=1000, type=int,

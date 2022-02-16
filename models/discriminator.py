@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.legacy as legacy
 import numpy as np
 
 
@@ -133,10 +132,7 @@ class NLayerDiscriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
-        if len(self.gpu_ids)  and isinstance(input.data, torch.cuda.FloatTensor):
-            return nn.parallel.data_parallel(self.model, input, self.gpu_ids)
-        else:
-            return self.model(input)
+        return self.model(input)
 
 # 3x3 Convolution
 def conv3x3(in_channels, out_channels, stride=1, padding=1, dilation=1):
