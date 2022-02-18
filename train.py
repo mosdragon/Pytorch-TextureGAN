@@ -9,9 +9,8 @@ from utils import transforms as custom_transforms
 from models import save_network, GramMatrix
 from utils.visualize import vis_image, vis_patch
 
-# import time
-#import cv2
 
+from logger import debug, info, warn, error
 
 device0 = torch.device("cuda:0")
 
@@ -25,7 +24,6 @@ def gen_input(img, skg, ini_texture, ini_mask, xcenter=64, ycenter=64, size=40):
     # output bsx5xwxh
 
     w, h = img.size()[1:3]
-    # print w,h
     xstart = max(int(xcenter - size / 2), 0)
     ystart = max(int(ycenter - size / 2), 0)
     xend = min(int(xcenter + size / 2), w)
@@ -111,15 +109,12 @@ def gen_local_patch(patch_size, batch_size, eroded_seg, seg, img):
         i_bs = int(i_bs)
         seg_index_size = eroded_seg[i_bs,0,:,:].view(-1).size()[0]
         seg_index = torch.arange(0,seg_index_size).to(device0)
-        #import pdb; pdb.set_trace()
-        #print bs, batch_size
+
         seg_one = seg_index[eroded_seg[i_bs,0,:,:].view(-1)==1]
         if len(seg_one) != 0:
-            random_select = int(rand_between(0, len(seg_one)-1))
-            #import pdb; pdb.set_trace()
-            
+            random_select = int(rand_between(0, len(seg_one)-1))        
             x,y = get_coor(seg_one[random_select], eroded_seg[i_bs,0,:,:].size())
-            #print x,y,i_bs
+
         else:
             x,y = (w/2, h/2)
 
@@ -205,9 +200,10 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
     optimizerD_local = model["optimizerD_local"]
     optimizerG = model["optimizerG"]
 
+    N_batches = len(train_loader)
     for i, data in enumerate(train_loader):
+        info(f"Epoch: {epoch} - Batch {i+1}/{N_batches}")
 
-        print("Epoch: {0}       Iteration: {1}".format(epoch, i))
         # Detach is apparently just creating new Variable with cut off reference to previous node, so shouldn't effect the original
         # But just in case, let's do G first so that detaching G during D update don't do anything weird
         ############################
@@ -217,8 +213,9 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
 
         img, skg, seg, eroded_seg, txt = data  # LAB with negeative value
 
-        print(f"Types: {img.dtype}  {skg.dtype}  {txt.dtype}")
-        print(f"Shapes: {img.shape}  {skg.shape}  {txt.shape}")
+        # debug(f"Types: {img.dtype}  {skg.dtype}  {txt.dtype}")
+        # debug(f"Shapes: {img.shape}  {skg.shape}  {txt.shape}")
+        
         if random.random() < 0.5:
             txt = img
         
@@ -237,7 +234,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             txt = custom_transforms.normalize_rgb(txt).float()
             # seg=custom_transforms.normalize_rgb(seg).float()
         
-        
+
         if not args.use_segmentation_patch:
             seg.fill_(1)
          
@@ -262,19 +259,6 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
                                     args.num_input_texture_patch)
         
         batch_size, _, _, _ = img.size()
-
-        # img = img.to(device0)
-        # skg = skg.to(device0)
-        # seg = seg.to(device0)
-        # eroded_seg = eroded_seg.to(device0)
-        # txt = txt.to(device0)
-
-        # inp = inp.to(device0)
-
-        # input_stack.resize_as_(inp.float()).copy_(inp)
-        # target_img.resize_as_(img.float()).copy_(img)
-        # segment.resize_as_(seg.float()).copy_(seg)
-        # target_texture.resize_as_(txt.float()).copy_(txt)
 
         img = img.to(device0)
         skg = skg.to(device0)
@@ -336,13 +320,10 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             targetlll = txtlll
 
         ################## Global Pixel ab Loss ############################
-        
         err_pixel_ab = args.pixel_weight_ab * criterion_pixel_ab(outputab, targetab)
 
         ################## Global Feature Loss############################
-        
         out_feat = extract_content(renormalize(outputlll))[0]
-
         gt_feat = extract_content(renormalize(gtlll))[0]
         err_feat = args.feature_weight * criterion_feat(out_feat, gt_feat.detach())
 
@@ -363,8 +344,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         label = real_label
         labelv = torch.ones(outputD.size()).to(device0) * real_label
 
-        print(f"outputD: {outputD.dtype}    {outputD.shape}")
-        print(f"labelv: {labelv.dtype}    {labelv.shape}")
+        # debug(f"outputD: {outputD.dtype}    {outputD.shape}")
+        # debug(f"labelv: {labelv.dtype}    {labelv.shape}")
         err_gan = args.discriminator_weight * criterion_gan(outputD, labelv)
         err_pixel_l = 0
         ################## Global Pixel L Loss ############################
@@ -417,33 +398,28 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             
             
                 ################## Local D Loss ############################
-                
-                # label_ = Variable(label)
-                
-            
                 outputD_local = netD_local(torch.cat((texture_patchl, gt_texture_patchl),1))
 
                 # label_local.resize_(outputD_local.data.size())
                 labelv_local = (torch.ones(outputD_local.size()) * real_label).to(device0)
 
 
-                print(f"Compute Texturegan err: {outputD_local.shape} --> {criterion_texturegan(outputD_local, labelv_local)}")
+                # debug(f"Compute Texturegan err: {outputD_local.shape} --> {criterion_texturegan(outputD_local, labelv_local)}")
                 err_texturegan += args.discriminator_local_weight * criterion_texturegan(outputD_local, labelv_local)
             
             loss_graph["gdl"].append(err_texturegan.item())
         
         ####################################
-        print(f"""Errors:
-            err_pixel_l: {err_pixel_l}
-            err_pixel_ab: {err_pixel_ab}
-            err_gan: {err_gan}
-            err_feat: {err_feat}
-            err_style: {err_style}
-            err_texturegan: {err_texturegan}
-        """)
+        # print(f"""Errors:
+        #     err_pixel_l: {err_pixel_l}
+        #     err_pixel_ab: {err_pixel_ab}
+        #     err_gan: {err_gan}
+        #     err_feat: {err_feat}
+        #     err_style: {err_style}
+        #     err_texturegan: {err_texturegan}
+        # """)
 
         err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style + err_texturegan
-        
         err_G.backward(retain_graph=True)
 
         optimizerG.step()
@@ -454,9 +430,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         loss_graph["gd"].append(err_gan.item())
         loss_graph["gf"].append(err_feat.item())
         loss_graph["gs"].append(err_style.item())
-            
 
-        print('G:', err_G.item())
+        info('G:', err_G.item())
 
         ############################
         # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -476,7 +451,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         labelv = (torch.ones(outputD.size()) * real_label).to(device0)
 
         errD_real = criterion_gan(outputD, labelv)
-        print(f"outputD: {outputD.shape} {outputD.dtype}    errD_real: {errD_real.shape} {errD_real.dtype}")
+        # debug(f"outputD: {outputD.shape} {outputD.dtype}    errD_real: {errD_real.shape} {errD_real.dtype}")
         errD_real.backward()
 
         score = torch.ones(batch_size)
@@ -499,7 +474,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         labelv = (torch.ones(outputD.size()) * fake_label).to(device0)
 
         errD_fake = criterion_gan(outputD, labelv)
-        print(f"outputD: {outputD.shape} {outputD.dtype}    errD_fake: {errD_fake.shape} {errD_fake.dtype}")
+        # debug(f"outputD: {outputD.shape} {outputD.dtype}    errD_fake: {errD_fake.shape} {errD_fake.dtype}")
         errD_fake.backward()
         
         score = torch.ones(batch_size)
@@ -523,7 +498,7 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
         else:
             loss_graph["d"].append(0)
 
-        print('D:', 'real_acc', "%.2f" % real_acc.item(), 'fake_acc', "%.2f" % fake_acc.item(), 'D_acc', D_acc.item())
+        info('D:  ', 'real_acc  ', "%.2f  " % real_acc.item(), 'fake_acc  ', "%.2f  " % fake_acc.item(), 'D_acc  ', D_acc.item())
 
         ############################
         # (2) Update D local network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -601,8 +576,8 @@ def train(model, train_loader, val_loader, input_stack, target_img, target_textu
             else:
                 loss_graph["dl"].append(0)
 
-            print('D local:', 'real real_acc', "%.2f" % realreal_acc.item(), 'fake fake_acc', "%.2f" % fakefake_acc.item(), 'D_acc', D_acc.item())
-            #if i % args.save_every == 0:
+            info('D local:  ', 'real_acc  ', "%.2f  " % realreal_acc.item(), 'fake_acc  ', "%.2f  " % fakefake_acc.item(), 'D_acc  ', D_acc.item())
+            # if i % args.save_every == 0:
              #   save_network(netD_local, 'D_local', epoch, i, args)
 
         if i % args.save_every == 0:

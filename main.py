@@ -17,7 +17,7 @@ from models import scribbler, discriminator, texturegan, define_G, weights_init,
 from train import train
 import argparser
 
-
+from logger import debug, info, warn, error
 device0 = torch.device("cuda:0")
 
 
