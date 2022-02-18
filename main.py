@@ -94,7 +94,8 @@ def get_criterions(args):
 def main(args):
     layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13','relu1_2': '4'}
 
-    vis = visdom.Visdom(port=args.display_port)
+    # vis = visdom.Visdom(port=args.display_port)
+    vis = None
 
     loss_graph = {
         "g": [],
@@ -146,32 +147,32 @@ def main(args):
     netD.to(device0)
     netD_local.to(device0)
     feat_model.to(device0)
-    criterion_gan.to(device0)
-    criterion_pixel_l.to(device0)
-    criterion_pixel_ab.to(device0)
-    criterion_feat.to(device0)
-    criterion_texturegan.to(device0)
+    # criterion_gan.to(device0)
+    # criterion_pixel_l.to(device0)
+    # criterion_pixel_ab.to(device0)
+    # criterion_feat.to(device0)
+    # criterion_texturegan.to(device0)
 
-    input_stack = torch.FloatTensor().to(device0)
-    target_img = torch.FloatTensor().to(device0)
-    target_texture = torch.FloatTensor().to(device0)
-    segment = torch.FloatTensor().to(device0)
-    label = torch.FloatTensor(args.batch_size).to(device0)
-    label_local = torch.FloatTensor(args.batch_size).to(device0)
-    extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
+    input_stack = torch.DoubleTensor().to(device0)
+    target_img = torch.DoubleTensor().to(device0)
+    target_texture = torch.DoubleTensor().to(device0)
+    segment = torch.DoubleTensor().to(device0)
+    label = torch.DoubleTensor(args.batch_size).to(device0)
+    label_local = torch.DoubleTensor(args.batch_size).to(device0)
+    extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]]).to(device0)
     extract_style = FeatureExtractor(feat_model.features,
-                                        [layers_map[x.strip()] for x in args.style_layers.split(',')])
+                    [layers_map[x.strip()] for x in args.style_layers.split(',')]).to(device0)
 
     if args.gpu > 1:
         netG = nn.DataParallel(netG, list(range(args.gpu)))
         netD = nn.DataParallel(netD, list(range(args.gpu)))
         netD_local = nn.DataParallel(netD_local, list(range(args.gpu)))
         feat_model = nn.DataParallel(feat_model, list(range(args.gpu)))
-        criterion_gan = nn.DataParallel(criterion_gan, list(range(args.gpu)))
-        criterion_pixel_l = nn.DataParallel(criterion_pixel_l, list(range(args.gpu)))
-        criterion_pixel_ab = nn.DataParallel(criterion_pixel_ab, list(range(args.gpu)))
-        criterion_feat = nn.DataParallel(criterion_feat, list(range(args.gpu)))
-        criterion_texturegan = nn.DataParallel(criterion_texturegan, list(range(args.gpu)))
+        # criterion_gan = nn.DataParallel(criterion_gan, list(range(args.gpu)))
+        # criterion_pixel_l = nn.DataParallel(criterion_pixel_l, list(range(args.gpu)))
+        # criterion_pixel_ab = nn.DataParallel(criterion_pixel_ab, list(range(args.gpu)))
+        # criterion_feat = nn.DataParallel(criterion_feat, list(range(args.gpu)))
+        # criterion_texturegan = nn.DataParallel(criterion_texturegan, list(range(args.gpu)))
 
 
     model = {

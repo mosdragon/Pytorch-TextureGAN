@@ -5,10 +5,12 @@ import math
 import random
 from PIL import Image, ImageOps
 from skimage import color
-try:
-    import accimage
-except ImportError:
-    accimage = None
+
+# try:
+#     import accimage
+# except ImportError:
+#     accimage = None
+
 import numpy as np
 import numbers
 import types
@@ -107,7 +109,7 @@ def normalize_seg(seg):
     lab_img : torch.Tensor Normalized lab_img 
     """
     result = seg[:,0,:,:]
-    if torch.max(result) >1:
+    if torch.max(result) > 1:
         result = result/100.0
     result = torch.round(result)
     
